@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# shows some useful debugging info
+# for curently connected VPN users
+# like IP username and ACL_rule groups membership
+
+
+OPENVPN_SESSIONS="/tmp/openvpn-sessions/"
+ACL_RULES="/etc/openvpn/scripts/acl_members"
+
+
+cd $OPENVPN_SESSIONS
+
+find -type f -printf "%f\n" -iname "*.session"   | while read -r session
+do
+        user=`cat $session`
+        ip=`echo $session | cut -d "." -f 1-4`
+        rules=`grep $user $ACL_RULES | cut -d " " -f 2-`
+        printf "%s %s\n" "$user $ip $rules"
+done

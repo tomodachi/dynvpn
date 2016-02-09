@@ -1,0 +1,140 @@
+#!/usr/bin/python
+from globs import Global_vars
+from os import listdir
+from sys import argv
+import pwd
+
+this_glob = Global_vars()
+
+acl_content = ""
+acl_dict = {}
+
+
+def input_check():
+    """ sanity checking of variables """
+
+    if len(argv) < 3 or len(argv) > 4:
+        print "usage: " + "manage_acl_member" + " [add|remove|deluser] " + \
+            " user " + "group"
+        exit(1)
+
+    if len(argv) == 4:
+        if not(argv[1] == "add" or argv[1] == "remove" or argv[1] == "deluser"):
+            print "invalid action specified"
+            exit(1)
+        if no_such_acl_group(argv[3]):
+            print "no such acl goup exists"
+            exit(1)
+
+    if len(argv) == 3:
+        if not(argv[1] == "deluser"):
+            print "invalid action specified"
+            exit(1)
+
+    if argv[1] == "add":
+        if not(valid_user(argv[2])):
+            exit(1)
+
+
+def no_such_acl_group(group):
+    """ check if a acl exists in the filesystem """
+    group = group + ".py"
+    acl_group = listdir(this_glob.ACL_RULES_PATH)
+    for entry in acl_group:
+        if entry == group:
+            return False
+    return True
+
+
+def valid_user(user):
+    """ check if user exists in passwd file """
+    try:
+        pwd.getpwnam(user)
+    except KeyError:
+        print "error: no such user exist in passwd file"
+        return False
+    return True
+
+
+def read_acl_from_file(FILE):
+    """ reads the acl_members file from disk """
+    with open(FILE) as f:
+        acl_content = f.readlines()
+
+    for line in acl_content:
+        line = line.strip()
+        user = line.split(" ")[0]
+        groups = line.split(" ")[1:]
+        unique_groups = set()
+        for group in groups:
+            unique_groups.add(group)
+        acl_dict[user] = unique_groups
+    return acl_dict
+
+
+def add_acl(user, group, acl):
+    user_acl = set()
+    if user in acl_dict:
+        user_acl = acl_dict[user]
+        user_acl.add(group)
+    else:
+        user_acl.add(group)
+        acl_dict[user] = user_acl
+    print "added user:", user, "to access group:", group
+    return acl_dict
+
+
+def del_user(user):
+    """ remove user from all groups """
+    try:
+        acl_dict.pop(user)
+        print "user:", user, "removed"
+    except KeyError:
+        print "no such user in acl_members file"
+    return acl_dict
+
+
+def del_acl(user, group):
+    if user in acl_dict:
+        user_acl = acl_dict[user]
+        try:
+            user_acl.remove(group)
+            print "removed user:", user, " from access group:", group
+            if len(user_acl) == 0:
+                acl_dict.pop(user)
+        except KeyError:
+            print "user:", user, "does not belong to group:", group
+    return acl_dict
+
+
+def write_acl_to_file(new_acl):
+    acl_members = ""
+    for k in new_acl.iterkeys():
+        user_groups = new_acl[k]
+        groups = ""
+        while len(user_groups) != 0:
+            groups += user_groups.pop() + " "
+        acl_members += k + " " + groups.strip() + "\n"
+
+    with open(this_glob.ACL_MEMBER_FILE, 'w') as f:
+        f.write(acl_members)
+
+
+def main():
+    input_check()
+    old_acl = read_acl_from_file(this_glob.ACL_MEMBER_FILE)
+
+    if argv[1] == "add":
+        new_acl = add_acl(argv[2], argv[3], old_acl)
+        write_acl_to_file(new_acl)
+
+    if argv[1] == "deluser":
+        new_acl = del_user(argv[2])
+        write_acl_to_file(new_acl)
+
+    elif argv[1] == "remove":
+        new_acl = del_acl(argv[2], argv[3])
+        write_acl_to_file(new_acl)
+
+
+main()

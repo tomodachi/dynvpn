@@ -1,0 +1,193 @@
+#!/usr/bin/python
+
+from sys import argv
+import os
+from globs import Global_vars, Action_Enum, Openvpn_incoming_var
+import syslog
+import subprocess
+
+this_glob = Global_vars()
+ovpn_vars = Openvpn_incoming_var()
+a_enum = Action_Enum()
+
+
+def input_variable_check():
+    if len(argv) < 3 or len(argv) < 2:
+        logger("Error: too few arguments")
+        print "usage:", argv[0], "[ add | update | delete ] ip username"
+        exit(1)
+
+    if argv[1] != "add" and argv[1] != "update" and argv[1] != "delete":
+        logger("no valid action specififed")
+        exit(1)
+
+    ovpn_vars.action = argv[1]
+    ovpn_vars.ip = argv[2]
+
+    # the third argument (user) is not passed when an action is DELETE
+    # so we make sure not to set it if this is the hook scenario
+
+    if not(ovpn_vars.action == a_enum.DELETE):
+        ovpn_vars.user = argv[3]
+
+
+def run_fw_action(action, ip):
+    """ Do an add|delete|update action
+    depending on what state the client is in"""
+
+    if action == a_enum.ADD:
+        logger("Add Action Triggered, applying rules")
+        lookup_fw_acl(action, ip)
+        save_user_ip(ip)
+
+    elif action == a_enum.DELETE:
+        logger("Delete Action Triggered, flushing rules")
+        delete_user_chain(ip)
+        os.system("rm " + this_glob.USER_SESSION_PATH + ip + ".session")
+
+    elif action == a_enum.UPDATE:
+        logger("Update Action Triggered, flushing rules")
+        delete_user_chain(ip)
+        lookup_fw_acl(a_enum.ADD, ip)
+
+
+def get_user_from_ip(ip):
+    """ lookup user based on ip """
+    logger("looking up user based on ip:" + ip)
+    temp = read_file(this_glob.USER_SESSION_PATH + ip + ".session")
+
+    temp = temp[0]
+    ovpn_vars.user = temp.split(":")[0]
+    logger("matched ip: " + ip + "to user:" + ovpn_vars.user)
+    # we need some error handling here, what if there is no session
+    # for the user?
+
+
+def save_user_ip(ip):
+    """ The action delete does not send the user that is being
+    deleted so we need to keep a state and lookup what user an ip belongs to
+    """
+    f = open(this_glob.USER_SESSION_PATH + ip + ".session", 'w')
+    f.write(ovpn_vars.user)
+    f.close()
+
+
+def apply_fw_acl(action, ip, acl):
+    logger("action: " + action)
+
+    # We should throw an exception if no such rule file exist
+    os.system(this_glob.ACL_RULES_PATH + acl + ".py" + " " +
+              action + " " + ip + " " + ovpn_vars.user)
+
+
+def read_file(file):
+    try:
+        f = open(file, 'r')
+        return f.readlines()
+    except IOError:
+        logger("could not open file:" + file)
+        exit(1)
+
+
+def lookup_fw_acl(action, ip):
+    """ Given an openvpn client connect. Look up user
+    to find the acl rule to apply """
+    fw_acl = {}
+    user = ""
+    temp_groups = []
+
+    # we should have an exception here if the acl file does
+    # not exist
+    acl_file = read_file(this_glob.ACL_MEMBER_FILE)
+    this_glob.USER_ACL = acl_file
+
+    for user_entry in acl_file:
+        user = user_entry.split(" ")[0]
+        if user == ovpn_vars.user:
+            temp_groups = user_entry.split(" ")[1:]
+
+            logger("parsing acl file for user:" + ovpn_vars.user)
+            logger("user:" + user)
+            logger("group:" + str(temp_groups))
+            logger("ovpnvar_user:" + ovpn_vars.user)
+
+            fw_acl[user] = temp_groups
+    try:
+        user_acls = fw_acl[ovpn_vars.user]
+    except:
+        logger("user has no acl")
+        exit(1)
+
+    # before applying each acl rule
+    # check that no custom iptables user chain exists
+    # if so wipe rules and log the incident
+    if user_chain_exists(ip):
+        logger(" old ruleset for ip found, flushing old rules")
+        delete_user_chain(ip)
+        create_user_chain(ip)
+    else:
+        create_user_chain(ip)
+
+    for acl in user_acls:
+        logger("applying acl " + acl + " for user: " + user)
+        acl = acl.strip()
+        apply_fw_acl(action, ip, acl)
+
+
+def user_chain_exists(ip):
+    """ Checks if  user chain exists in iptables along with a jump reference
+    to it in FORWARD chain"""
+    forward = subprocess.check_output("""iptables -L | sed '1,/Chain FORWARD/d;/Chain OUTPUT/, $d'""", shell=True, universal_newlines=True)
+    for rule in forward.split("\n"):
+        if ip in rule:
+            return True
+    return False
+
+
+def flush_user_chain(ip):
+    """ remove all rules for the connecting user ip """
+    syslog.syslog("flushing user chain")
+    os.system("iptables -F " + ip)
+
+
+def delete_user_chain(ip):
+    """ removes the custom chain for the ip """
+    syslog.syslog("deleting user chain")
+    # user chain cannot be removed before all refereces to it are gone
+    flush_user_chain(ip)
+    # remove reference in FORWARD chain to custom rule
+    os.system("iptables -t filter -D FORWARD -s " + ip + " -j " + ip)
+    # remove custom rule
+    os.system("iptables -X " + ip)
+
+
+def create_user_chain(ip):
+    # create a custom IPTABLES chain
+    os.system("iptables -N " + ip)
+    # create a jump point to this table for the ip in FORWARD chain
+    os.system("iptables -t filter -A FORWARD -s " + ip + " -j " + ip)
+
+
+def logger(input):
+    """ Wrapper function for logging to syslog """
+    if this_glob.DEBUG:
+        if type(input) == list:
+            input = str(input)
+        syslog.syslog(input)
+        print(input)
+
+
+def main():
+    input_variable_check()
+
+    # since we will store session in /tmp/ make sure
+    # it exists
+    if not(os.path.exists(this_glob.USER_SESSION_PATH)):
+        os.makedirs(this_glob.USER_SESSION_PATH)
+
+    logger("=action=:")
+    logger(ovpn_vars.action)
+    run_fw_action(ovpn_vars.action, ovpn_vars.ip)
+
+if __name__ == "__main__":
+    main()

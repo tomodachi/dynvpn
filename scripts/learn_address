@@ -147,7 +147,7 @@ def user_chain_exists(ip):
 def flush_user_chain(ip):
     """ remove all rules for the connecting user ip """
     syslog.syslog("flushing user chain")
-    os.system("iptables -F " + ip)
+    os.system("nft flush chain ip" + ip)
 
 
 def delete_user_chain(ip):
@@ -157,13 +157,13 @@ def delete_user_chain(ip):
     flush_user_chain(ip)
     # remove reference in FORWARD chain to custom rule
     os.system("iptables -t filter -D FORWARD -s " + ip + " -j " + ip)
-    # remove custom rule
-    os.system("iptables -X " + ip)
+    # remove custom rule chain
+    os.system("nft delete chain ip filter " + ip)
 
 
 def create_user_chain(ip):
-    # create a custom IPTABLES chain
-    os.system("iptables -N " + ip)
+    # create a custom nftables chain
+    os.system("nft add chain ip filter " + ip)
     # create a jump point to this table for the ip in FORWARD chain
     os.system("iptables -t filter -A FORWARD -s " + ip + " -j " + ip)
 

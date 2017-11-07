@@ -137,9 +137,10 @@ def lookup_fw_acl(action, ip):
 def user_chain_exists(ip):
     """ Checks if  user chain exists in iptables along with a jump reference
     to it in FORWARD chain"""
-    forward = subprocess.check_output("""iptables -L | sed '1,/Chain FORWARD/d;/Chain OUTPUT/, $d'""", shell=True, universal_newlines=True)
-    for rule in forward.split("\n"):
-        if ip in rule:
+    forward = subprocess.check_output(['nft', '-a', 'list',
+                                       'chain', 'filter', 'forward'])
+    for row in forward:
+        if ip in row:
             return True
     return False
 
@@ -147,7 +148,7 @@ def user_chain_exists(ip):
 def flush_user_chain(ip):
     """ remove all rules for the connecting user ip """
     syslog.syslog("flushing user chain")
-    os.system("nft flush chain ip" + ip)
+    os.system("nft flush chain filter " + ip)
 
 
 def delete_user_chain(ip):
@@ -155,8 +156,14 @@ def delete_user_chain(ip):
     syslog.syslog("deleting user chain")
     # user chain cannot be removed before all refereces to it are gone
     flush_user_chain(ip)
-    # remove reference in FORWARD chain to custom rule
-    os.system("iptables -t filter -D FORWARD -s " + ip + " -j " + ip)
+
+    # remove reference in forward chain to custom rule
+    forward = subprocess.Popen(['nft', '-a', 'list', 'chain', 'filter', 'forward'], stdout=subprocess.PIPE).communicate()[0]
+    for row in forward.split("\n"):
+        if ip in row:
+            rule_number = str(row.split("handle")[1]).strip()
+            subprocess.call(['nft', 'delete', 'rule', 'filter', 'forward',
+                             'handle', rule_number])
     # remove custom rule chain
     os.system("nft delete chain ip filter " + ip)
 
@@ -165,7 +172,7 @@ def create_user_chain(ip):
     # create a custom nftables chain
     os.system("nft add chain ip filter " + ip)
     # create a jump point to this table for the ip in FORWARD chain
-    os.system("iptables -t filter -A FORWARD -s " + ip + " -j " + ip)
+    os.system("nft add rule filter forward ip saddr " + ip + " jump " + ip)
 
 
 def logger(input):
@@ -188,6 +195,7 @@ def main():
     logger("=action=:")
     logger(ovpn_vars.action)
     run_fw_action(ovpn_vars.action, ovpn_vars.ip)
+
 
 if __name__ == "__main__":
     main()

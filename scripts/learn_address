@@ -43,7 +43,7 @@ def run_fw_action(action, ip):
     elif action == a_enum.DELETE:
         logger("Delete Action Triggered, flushing rules")
         delete_user_chain(ip)
-        os.system("rm " + this_glob.USER_SESSION_PATH + ip + ".session")
+        subprocess.call(['rm', this_glob.USER_SESSION_PATH + ip + ".session"])
 
     elif action == a_enum.UPDATE:
         logger("Update Action Triggered, flushing rules")
@@ -76,8 +76,8 @@ def apply_fw_acl(action, ip, acl):
     logger("action: " + action)
 
     # We should throw an exception if no such rule file exist
-    os.system(this_glob.ACL_RULES_PATH + acl + ".py" + " " +
-              action + " " + ip + " " + ovpn_vars.user)
+    subprocess.call([this_glob.ACL_RULES_PATH + acl, action, ip,
+                     ovpn_vars.user])
 
 
 def read_file(file):
@@ -148,7 +148,7 @@ def user_chain_exists(ip):
 def flush_user_chain(ip):
     """ remove all rules for the connecting user ip """
     syslog.syslog("flushing user chain")
-    os.system("nft flush chain filter " + ip)
+    subprocess.call(['nft', 'flush', 'chain', 'filter', ip])
 
 
 def delete_user_chain(ip):
@@ -158,21 +158,24 @@ def delete_user_chain(ip):
     flush_user_chain(ip)
 
     # remove reference in forward chain to custom rule
-    forward = subprocess.Popen(['nft', '-a', 'list', 'chain', 'filter', 'forward'], stdout=subprocess.PIPE).communicate()[0]
+    forward = subprocess.Popen(['nft', '-a', 'list', 'chain', 'filter',
+                                'forward'],
+                               stdout=subprocess.PIPE).communicate()[0]
     for row in forward.split("\n"):
         if ip in row:
             rule_number = str(row.split("handle")[1]).strip()
             subprocess.call(['nft', 'delete', 'rule', 'filter', 'forward',
                              'handle', rule_number])
     # remove custom rule chain
-    os.system("nft delete chain ip filter " + ip)
+    subprocess.call(['nft', 'delete', 'chain', 'ip', 'filter', ip])
 
 
 def create_user_chain(ip):
     # create a custom nftables chain
-    os.system("nft add chain ip filter " + ip)
+    subprocess.call(['nft', 'add', 'chain', 'ip', 'filter', ip])
     # create a jump point to this table for the ip in FORWARD chain
-    os.system("nft add rule filter forward ip saddr " + ip + " jump " + ip)
+    subprocess.call(['nft', 'add', 'rule', 'filter', 'forward', 'ip',
+                     'saddr', ip, 'jump', ip])
 
 
 def logger(input):

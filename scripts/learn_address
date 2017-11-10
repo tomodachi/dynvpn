@@ -119,7 +119,7 @@ def lookup_fw_acl(action, ip):
         exit(1)
 
     # before applying each acl rule
-    # check that no custom iptables user chain exists
+    # check that no custom nftables user chain exists
     # if so wipe rules and log the incident
     if user_chain_exists(ip):
         logger(" old ruleset for ip found, flushing old rules")
@@ -135,9 +135,9 @@ def lookup_fw_acl(action, ip):
 
 
 def user_chain_exists(ip):
-    """ Checks if  user chain exists in iptables along with a jump reference
+    """ Checks if user chain exists in nftables along with a jump reference
     to it in FORWARD chain"""
-    forward = subprocess.check_output(['nft', '-a', 'list',
+    forward = subprocess.check_output(['/usr/sbin/nft', '-a', 'list',
                                        'chain', 'filter', 'forward'])
     for row in forward:
         if ip in row:
@@ -148,7 +148,7 @@ def user_chain_exists(ip):
 def flush_user_chain(ip):
     """ remove all rules for the connecting user ip """
     syslog.syslog("flushing user chain")
-    subprocess.call(['nft', 'flush', 'chain', 'filter', ip])
+    subprocess.call(['/usr/sbin/nft', 'flush', 'chain', 'filter', ip])
 
 
 def delete_user_chain(ip):
@@ -158,23 +158,24 @@ def delete_user_chain(ip):
     flush_user_chain(ip)
 
     # remove reference in forward chain to custom rule
-    forward = subprocess.Popen(['nft', '-a', 'list', 'chain', 'filter',
-                                'forward'],
+    forward = subprocess.Popen(['/usr/sbin/nft', '-a', 'list', 'chain',
+                                'filter', 'forward'],
                                stdout=subprocess.PIPE).communicate()[0]
     for row in forward.split("\n"):
         if ip in row:
             rule_number = str(row.split("handle")[1]).strip()
-            subprocess.call(['nft', 'delete', 'rule', 'filter', 'forward',
-                             'handle', rule_number])
+            subprocess.call(['/usr/sbin/nft', 'delete', 'rule', 'filter',
+                             'forward', 'handle', rule_number])
     # remove custom rule chain
-    subprocess.call(['nft', 'delete', 'chain', 'ip', 'filter', ip])
+    subprocess.call(['/usr/sbin/nft', 'delete', 'chain', 'ip', 'filter', ip])
 
 
 def create_user_chain(ip):
     # create a custom nftables chain
-    subprocess.call(['nft', 'add', 'chain', 'ip', 'filter', ip])
+    subprocess.call(['/usr/sbin/nft', 'add', 'chain', 'ip',
+                     'filter', ip])
     # create a jump point to this table for the ip in FORWARD chain
-    subprocess.call(['nft', 'add', 'rule', 'filter', 'forward', 'ip',
+    subprocess.call(['/usr/sbin/nft', 'add', 'rule', 'filter', 'forward', 'ip',
                      'saddr', ip, 'jump', ip])
 
 

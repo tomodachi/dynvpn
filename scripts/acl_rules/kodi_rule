@@ -1,0 +1,9 @@
+#!/usr/bin/python
+from template_rule import *
+
+# === ADD your nftables ruleset below  here === ####
+# freenas
+os.system("nft add rule ip filter " + ip + " ip daddr 10.0.5.253 tcp dport 8080 accept")
+# the nexus
+os.system("nft add rule ip filter " + ip + " ip daddr 10.0.3.254 tcp dport 80 accept")
+# === ADD your nftables ruleset above here === ####

@@ -37,8 +37,8 @@ def run_fw_action(action, ip):
 
     if action == a_enum.ADD:
         logger("Add Action Triggered, applying rules")
-        lookup_fw_acl(action, ip)
-        save_user_ip(ip)
+        user_acl = lookup_fw_acl(action, ip)
+        save_user_ip(ip, user_acl)
 
     elif action == a_enum.DELETE:
         logger("Delete Action Triggered, flushing rules")
@@ -63,12 +63,12 @@ def get_user_from_ip(ip):
     # for the user?
 
 
-def save_user_ip(ip):
+def save_user_ip(ip, user_acl):
     """ The action delete does not send the user that is being
     deleted so we need to keep a state and lookup what user an ip belongs to
     """
     f = open(this_glob.USER_SESSION_PATH + ip + ".session", 'w')
-    f.write(ovpn_vars.user)
+    f.write(ovpn_vars.user + " " + " ".join(user_acl))
     f.close()
 
 
@@ -94,7 +94,7 @@ def lookup_fw_acl(action, ip):
     to find the acl rule to apply """
     fw_acl = {}
     user = ""
-    temp_groups = []
+    user_groups = []
 
     # we should have an exception here if the acl file does
     # not exist
@@ -104,14 +104,14 @@ def lookup_fw_acl(action, ip):
     for user_entry in acl_file:
         user = user_entry.split(" ")[0]
         if user == ovpn_vars.user:
-            temp_groups = user_entry.split(" ")[1:]
+            user_groups = user_entry.split(" ")[1:]
 
             logger("parsing acl file for user:" + ovpn_vars.user)
             logger("user:" + user)
-            logger("group:" + str(temp_groups))
+            logger("group:" + str(user_groups))
             logger("ovpnvar_user:" + ovpn_vars.user)
 
-            fw_acl[user] = temp_groups
+            fw_acl[user] = user_groups
     try:
         user_acls = fw_acl[ovpn_vars.user]
     except:
@@ -132,6 +132,8 @@ def lookup_fw_acl(action, ip):
         logger("applying acl " + acl + " for user: " + user)
         acl = acl.strip()
         apply_fw_acl(action, ip, acl)
+
+    return user_groups
 
 
 def user_chain_exists(ip):

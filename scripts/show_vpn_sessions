@@ -1,20 +1,72 @@
-#!/bin/bash
+#!/usr/bin/python
 
-# shows some useful debugging info
-# for curently connected VPN users
-# like IP username and ACL_rule groups membership
-
-
-OPENVPN_SESSIONS="/tmp/openvpn-sessions/"
-ACL_RULES="/etc/openvpn/scripts/acl_members"
+from os import listdir
+import sys
+from argparse import ArgumentParser
+from os.path import isfile, join
+from globs import Global_vars as g
 
 
-cd $OPENVPN_SESSIONS
+def get_session_files():
+    try:
+        sessions = [f for f in listdir(g.USER_SESSION_PATH)
+                    if ".session" in f and isfile(join(g.USER_SESSION_PATH, f))]
+    except OSError:
+            print "error no VPN sessions folder found :("
+            sys.exit(1)
+    return sessions
 
-find -type f -printf "%f\n" -iname "*.session"   | while read -r session
-do
-        user=`cat $session`
-        ip=`echo $session | cut -d "." -f 1-4`
-        rules=`grep $user $ACL_RULES | cut -d " " -f 2-`
-        printf "%s %s\n" "$user $ip $rules"
-done
+
+def get_groups(session_files):
+    user_and_groups = []
+    for s in session_files:
+        with open(g.USER_SESSION_PATH + s, 'r') as f:
+            row = (f.read())
+            row = row.split()
+            row.append(s.rstrip(".session"))
+            user_and_groups.append(row)
+
+    if len(user_and_groups) == 0:
+        print "no vpn sessions found :("
+        sys.exit(1)
+    return user_and_groups
+
+
+def pretty_sort(input):
+    output = []
+
+    for row in input:
+        username = row[0]
+
+        ip = "".join(row[-1:])
+        groups = row[1:-1]
+
+        if args.short_group_name:
+            groups[:] = [x[:-5] for x in groups]
+
+        groups = " ".join(groups)
+
+        pretty_row = username + " " + ip + " " + groups
+        # if filtering for specific user
+        if args.username:
+            if "".join(args.username) in username:
+                output.append(pretty_row)
+        else:
+            output.append(pretty_row)
+    output.sort()
+    return output
+
+
+parser = ArgumentParser()
+parser.add_argument("-u", "--username", nargs=1, help="filter output for user")
+parser.add_argument("-l", "--long", dest="short_group_name",
+                    action="store_false",
+                    default=True, help="Show full name of VPN groups")
+
+
+args = parser.parse_args()
+
+session_files = get_session_files()
+session_data = get_groups(session_files)
+for row in pretty_sort(session_data):
+    print row

@@ -7,14 +7,6 @@ class Global_vars:
     USER_ACL = ""
 
 
-class Action_Enum:
-    """ Enum to hold the three states an action can be
-    from the variables passed in argv[1] """
-    ADD = "add"
-    UPDATE = "update"
-    DELETE = "delete"
-
-
 # struct like placeholder for
 # all openvpn variables we get when script is called
 class Openvpn_incoming_var:

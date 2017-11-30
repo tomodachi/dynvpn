@@ -1,12 +1,11 @@
-#!/usr/bin/python
-from template_rule import *
+#!/usr/bin/python2.7
+from default_rule import *
 
-# === ADD your nftables ruleset below  here === ####
-ff_net = "{ 10.0.5.0/24, 10.0.0.0/24 }"
+# === ADD your nftables ruleset below here === ####
+yolo_net = "{ 10.0.5.0/24, 10.0.0.0/24 }"
 # freenas webdav
 os.system("nft add rule ip filter " + ip + " ip daddr 10.0.5.253 tcp dport 8080 accept")
-# yolocolo DNS
-os.system("nft add rule ip filter " + ip + " ip daddr 10.0.0.1 udp dport 53 accept")
+
 # access to any except my networks
-os.system("nft add rule ip filter " + ip + " ip daddr ne" + ff_net  + " accept")
+os.system("nft add rule ip filter " + ip + " ip daddr ne " + yolo_net + " accept")
 # === ADD your nftables ruleset above here === ####

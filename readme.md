@@ -1,24 +1,31 @@
 ### dynvpn ###
 
 dynvpn is a set of small python programs for dynamicaly applying firewall profiles to users 
-based on group memberships. This proves quite usefull to get a more "enterprisey VPN"
-For example maybe we want  "Alice" to only be able to access your bugtracker on port 80, while you want "Bob" to also be able to 
-ssh into it to verify backups etc. 
+based on group memberships when they connect to the VPN server. This proves quite usefull to get a more "enterprisey VPN"
+creating narrow and unique access controls for each type of connecting user.
 
 # Requirements:
-- iptables
-- openvpn
-- python2.7
+Check Dockerfile
+
+# How to start the POC: 
+```
+docker build -t dynvpn 
+docker run -ti --privileged  -v dynvpn:/etc/openvpn/easy-rsa/keys dynvpn
+VOL_PATH=/var/lib/docker/volumes/dynvpn/_data/
+openvpn --config $VOL_PATH/client-vpn.conf --cd $VOL_PATH 
+# you can inspect the dynamic ruleset applied from within the container with:
+nft list ruleset
+# to see that explicit allow rules has been added to a custom chain for your connected vpn user
+```
 
 
 # Openvpn client connection state transition
 
-1.  User connects to VPN 
-2.  User is authenticated
-3.  After authentication the cn (common name taken from the certificate file generated for vpn client certificate holder) is checked against the acl_members file where for each group a user belongs to (for example group2 group1 ) the learn_adress script will execute a file called group2.py applying that set of iptables rules for the unique ip the user is connected to the OpenVPN server with. 
-4.  User disconnects
-User disconnection is handled by a ping time out set in server.conf. When time out is reached the connection is dropped causing OpenVPN to call the learn-address hook with the action DELETE. 
-Dropping the vpn connection and removing any firewall rules for that VPN session. 
+1.  User connects to VPN and auths
+2.  After authentication the cn (common name taken from the certificate file generated for vpn client certificate holder) is checked against the acl_members file where for each group a user belongs to (for example group2 group1 ) the learn_adress script will execute a file called group2.py applying that set of nftables rules for the unique ip the user is connected to the OpenVPN server with. 
+3.  User disconnects
+User disconnection is handled by a ping time out set in server.conf. When time out is reached the connection is dropped causing OpenVPN to call the learn-address hook with the delete action 
+Dropping the VPN connection and removing firewall rules for that VPN session. 
 
 
 # Python program files overview #
@@ -69,26 +76,11 @@ this is a base template that should be included in your custom acl files
 doing some generic tasks that happen in each rule file 
 
 
-* /tmp/openvpn-sessions/
+* /etc/openvpn/scripts/sessions/
 
-this is the destination folder for session files
-It creates a file for each currently connected user 
-stating the ip and username and applied rules for a user 
-
-
-* allow_all_to_10.0.0.0_rule.py
-
-A sample firewall rule used that gives access to something network.
-Each acl rule file is an independent program that can be launched directly from the shell of
-the OpenVPN server to test out new firewall rules for a connected users ip.
-
-
-* manage_acl_members
-
-this file allows adding / removing users from the acl_members file
-it does some sanity checking like, lowercase, checking if user /  group exist etc.
-to use it simply run:
- ./manage_acl_members add mateusz.mojsiejuk prod_rule risk_rule
+Ddestination folder for session files
+a file for each currently connected user 
+stating the ip, username and applied rules for a connected user 
 
 # How the VPN scripts interacts with networking and firewalling #
 
@@ -105,6 +97,6 @@ in this table each acl rule files rules will be applied
 
 
 # TODO #
+- rewrite for python3
+- tests
 - rewrite acl_members and management of file in some more easily parsable format like json or yaml
-- easier way of deploying new acl_rule files, currently one has to manually create them in the acl_rules/ folder
-- perhaps a test suite so we can verify there are no regressions when making changes

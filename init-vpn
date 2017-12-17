@@ -1,0 +1,8 @@
+#!/bin/bash
+# since injecting a fw ruleset has to happen in a privileged mode
+# we do it when container starts
+
+# inject fw ruleset
+/etc/openvpn/scripts/dynvpn.nftables
+# start openvpn
+/usr/sbin/openvpn --config /etc/openvpn/server-vpn.conf --cd /etc/openvpn/keys/

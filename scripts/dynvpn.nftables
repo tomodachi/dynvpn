@@ -1,0 +1,43 @@
+#!/usr/sbin/nft -f
+
+# This firewall ruleset i
+# Allows ICMP enables NAT from VPN net
+# and drops traffic from vpn
+
+# defines
+define IF_WAN = eth0
+define IF_LAN = eth1
+define IF_TUN = tun0
+define ICMP_TYPES= { destination-unreachable, router-advertisement, time-exceeded, parameter-problem, echo-request }
+
+
+# filter
+table ip filter {
+    chain output {
+        type filter hook output priority 100; policy accept;
+    }
+
+    chain input {
+        type filter hook input priority 0; policy accept;
+        # ip protocol icmp icmp type $ICMP_TYPES  accept
+    }
+
+    chain forward { # allow packets fron lan to wan & lan to wan if initiated from lan
+        type filter hook forward priority 0; policy drop;
+       iifname $IF_WAN oifname $IF_TUN ct state established accept;
+       iifname $IF_WAN oifname $IF_TUN ct state related accept;
+    }
+}
+
+# network adress translation
+table ip nat {
+
+    chain prerouting {
+        type nat hook prerouting priority 0; policy accept
+    }
+
+    chain postrouting {
+        type nat hook postrouting priority 0; policy accept
+        oifname $IF_WAN masquerade
+    }
+}

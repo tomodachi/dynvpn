@@ -19,7 +19,7 @@ table ip filter {
 
     chain input {
         type filter hook input priority 0; policy accept;
-        ip protocol icmp icmp type $ICMP_TYPES  accept
+        # ip protocol icmp icmp type $ICMP_TYPES  accept
     }
 
     chain forward { # allow packets fron lan to wan & lan to wan if initiated from lan

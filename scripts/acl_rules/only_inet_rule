@@ -4,6 +4,4 @@ from default_rule import *
 # === ADD your nftables ruleset below  here === ####
 ff_net = "{ 10.0.5.0/24, 10.0.0.0/24, 10.0.3.0/24 }"
 os.system("nft add rule ip filter " + ip + " ip daddr ne" + ff_net  + " accept")
-# allow DNS
-os.system("nft add rule ip filter " + ip + " ip daddr {10.0.0.1, 10.0.3.254} udp dport 53 accept")
 # === ADD your nftables ruleset above here === ####

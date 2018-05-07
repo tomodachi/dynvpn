@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
 MAINTAINER Mateusz Mojsiejuk tomodachi@fishface.se
 
@@ -17,6 +17,7 @@ RUN chmod 755 /etc/openvpn/scripts/init-vpn
 RUN cp -rv /usr/share/easy-rsa /etc/openvpn/ \
 && mkdir /etc/openvpn/easy-rsa/keys \
 && ln -s /etc/openvpn/easy-rsa/keys /etc/openvpn/keys \
+# && ln -s /etc/openvpn/easy-rsa/openssl-1.0.0.cnf /etc/openvpn/easy-rsa/openssl.cnf \
 &&  openvpn --genkey --secret /etc/openvpn/keys/static.key \
 
 

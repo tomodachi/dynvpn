@@ -1,4 +1,4 @@
-#!/usr/bin/python2.7
+#!/usr/bin/env python
 
 from sys import argv
 import os
@@ -11,9 +11,9 @@ ovpn_vars = Openvpn_incoming_var()
 
 
 def input_variable_check():
-    if len(argv) < 3 or len(argv) < 2:
+    if len(argv) < 3:
         logger("Error: too few arguments")
-        print "usage:", argv[0], "[ add | update | delete ] ip username"
+        print("usage:", argv[0], "[ add | update | delete ] ip username")
         exit(1)
 
     if argv[1] != "add" and argv[1] != "update" and argv[1] != "delete":
@@ -26,7 +26,7 @@ def input_variable_check():
     # the third argument (user) is not passed when an action is DELETE
     # so we make sure not to set it if this is the hook scenario
 
-    if not(ovpn_vars.action == "delete"):
+    if not ovpn_vars.action == "delete":
         ovpn_vars.user = argv[3]
 
 
@@ -42,7 +42,7 @@ def run_fw_action(action, ip):
     elif action == "delete":
         logger("Delete Action Triggered, flushing rules")
         delete_user_chain(ip)
-        subprocess.call(['rm', this_glob.USER_SESSION_PATH + ip + ".session"])
+        remove_file(this_glob.USER_SESSION_PATH + ip + ".session")
 
     elif action == "update":
         logger("Update Action Triggered, flushing rules")
@@ -85,6 +85,11 @@ def read_file(file):
         logger("could not open file:" + file)
         exit(1)
 
+def remove_file(filepath):
+    try:
+        os.remove(filepath)
+    except OSError:
+        pass
 
 def lookup_fw_acl(ip):
     """ Given an openvpn client connect. Look up user
@@ -145,13 +150,13 @@ def user_chain_exists(ip):
 
 def flush_user_chain(ip):
     """ remove all rules for the connecting user IP """
-    syslog.syslog("flushing user chain")
+    logger("flushing user chain")
     subprocess.call(['/usr/sbin/nft', 'flush', 'chain', 'filter', ip])
 
 
 def delete_user_chain(ip):
     """ removes the custom chain for the IP """
-    syslog.syslog("deleting user chain")
+    logger("deleting user chain")
     # user chain cannot be removed before all refereces to it are gone
     flush_user_chain(ip)
 
@@ -189,7 +194,6 @@ def main():
     input_variable_check()
 
     # make sure path for session files exist
-
     if not(os.path.exists(this_glob.USER_SESSION_PATH)):
         os.makedirs(this_glob.USER_SESSION_PATH)
 

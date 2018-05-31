@@ -6,12 +6,10 @@ class Global_vars:
     DEBUG = False
     USER_ACL = ""
 
-
-# struct like placeholder for
-# all openvpn variables we get when script is called
 class Openvpn_incoming_var:
-    """ Placeholder for the three variables argv[1-3]
-    that are passed down from OpenVPN hook """
+    """struct like placeholder for
+    all openvpn variables we get when script is called
+    in openvpn learn-address hook """
     action = ""
     ip = ""
     user = ""

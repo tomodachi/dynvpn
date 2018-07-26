@@ -1,25 +1,27 @@
-### dynvpn ###
+## dynvpn ##
 
-dynvpn is a set of small python programs for dynamicaly applying firewall profiles to users 
-based on group memberships when they connect to the VPN server. This proves quite usefull to get a more "enterprisey VPN"
+dynVPN is a set of small python programs for dynamicaly applying firewall profiles to users. 
+Based on group memberships when connecting to the VPN server. This proves quite usefull to get a more "enterprisey VPN"
 creating narrow and unique access controls for each type of connecting user.
 
-# Requirements:
+#### Requirements:
 Check Dockerfile
 
-# How to start the POC: 
+#### How to start the POC: 
 ```
 docker build -t dynvpn 
-docker run -ti --privileged  -v dynvpn:/etc/openvpn/easy-rsa/keys dynvpn
+docker run -ti --privileged -p 1194:1194/udp  -v dynvpn:/etc/openvpn/easy-rsa/keys dynvpn
 VOL_PATH=/var/lib/docker/volumes/dynvpn/_data/
 openvpn --config $VOL_PATH/client-vpn.conf --cd $VOL_PATH 
-# you can inspect the dynamic ruleset applied from within the container with:
-nft list ruleset
-# to see that explicit allow rules has been added to a custom chain for your connected vpn user
 ```
+#### you can inspect the dynamic ruleset applied from within the container with:
+```
+nft list ruleset
+```
+####  to see that explicit allow rules has been added to a custom chain for your connected vpn user
 
 
-# Openvpn client connection state transition
+#### Openvpn client connection state transition
 
 1.  User connects to VPN and auths
 2.  After authentication the cn (common name taken from the certificate file generated for vpn client certificate holder) is checked against the acl_members file where for each group a user belongs to (for example group2 group1 ) the learn_adress script will execute a file called group2.py applying that set of nftables rules for the unique ip the user is connected to the OpenVPN server with. 
@@ -28,7 +30,7 @@ User disconnection is handled by a ping time out set in server.conf. When time o
 Dropping the VPN connection and removing firewall rules for that VPN session. 
 
 
-# Python program files overview #
+####  Python program files overview #
 
 * learn_address
 

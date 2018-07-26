@@ -2,6 +2,9 @@
 # since injecting a fw ruleset has to happen in a privileged mode
 # we do it when container starts
 
+# Allow forwarding of packets
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
 # inject fw ruleset
 /etc/openvpn/scripts/dynvpn.nftables
 # start openvpn
